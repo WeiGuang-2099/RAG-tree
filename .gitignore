@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.env
+data/
+node_modules/
+.vite/
+coverage/
+.coverage
+*.sqlite3
+.DS_Store
+*.log
+*.tsbuildinfo
+
+# Trae IDE
+.trae/
+
+# Build output
+frontend/dist/
+
+# Test cache
+backend/.pytest_cache/

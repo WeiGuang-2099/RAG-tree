@@ -1,0 +1,14 @@
+[project]
+name = "graph-rag-analyzer"
+version = "0.1.0"
+description = "Graph RAG Code Analysis System"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["app/tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/tests/*"]

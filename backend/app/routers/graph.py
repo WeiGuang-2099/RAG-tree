@@ -1,0 +1,145 @@
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlmodel import Session, select
+from app.database import get_session
+from app.models.project import CodeNode, CodeEdge, Project, File as FileModel
+from typing import Optional
+
+router = APIRouter(prefix="/api/graph", tags=["graph"])
+
+
+def _node_to_dict(node: CodeNode, session: Session) -> dict:
+    file_record = session.get(FileModel, node.file_id)
+    file_path = file_record.file_path if file_record else ""
+    return {
+        "id": str(node.id),
+        "name": node.name,
+        "type": node.node_type,
+        "file_path": file_path,
+        "start_line": node.start_line,
+        "end_line": node.end_line,
+        "source_code": node.source_code,
+    }
+
+
+@router.get("/nodes/{project_id}")
+def get_nodes(
+    project_id: int,
+    session: Session = Depends(get_session),
+    node_type: Optional[str] = Query(None),
+):
+    """Get all code nodes for a project."""
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+
+    statement = select(CodeNode).where(CodeNode.project_id == project_id)
+    if node_type:
+        statement = statement.where(CodeNode.node_type == node_type)
+
+    nodes = session.exec(statement).all()
+    return [_node_to_dict(node, session) for node in nodes]
+
+
+@router.get("/edges/{project_id}")
+def get_edges(
+    project_id: int,
+    session: Session = Depends(get_session),
+    edge_type: Optional[str] = Query(None),
+):
+    """Get all code edges for a project."""
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+
+    statement = select(CodeEdge).where(CodeEdge.project_id == project_id)
+    if edge_type:
+        statement = statement.where(CodeEdge.edge_type == edge_type)
+
+    edges = session.exec(statement).all()
+    return [
+        {
+            "source": str(edge.source_node_id),
+            "target": str(edge.target_node_id),
+            "type": edge.edge_type,
+        }
+        for edge in edges
+    ]
+
+
+@router.get("/full/{project_id}")
+def get_full_graph(
+    project_id: int,
+    session: Session = Depends(get_session),
+):
+    """Get full graph data (nodes + edges) for a project."""
+    nodes = get_nodes(project_id, session)
+    edges = get_edges(project_id, session)
+    return {"nodes": nodes, "edges": edges}
+
+
+@router.get("/neighbors/{project_id}/{node_id}")
+def get_neighbors(
+    project_id: int,
+    node_id: int,
+    session: Session = Depends(get_session),
+    depth: int = Query(default=1, ge=1, le=3),
+):
+    """Get neighboring nodes within a given depth."""
+    visited = {node_id}
+    current_level = {node_id}
+
+    for _ in range(depth):
+        next_level = set()
+        for nid in current_level:
+            # Outgoing edges
+            out_edges = session.exec(
+                select(CodeEdge).where(
+                    CodeEdge.project_id == project_id,
+                    CodeEdge.source_node_id == nid,
+                )
+            ).all()
+            for e in out_edges:
+                if e.target_node_id not in visited:
+                    next_level.add(e.target_node_id)
+                    visited.add(e.target_node_id)
+
+            # Incoming edges
+            in_edges = session.exec(
+                select(CodeEdge).where(
+                    CodeEdge.project_id == project_id,
+                    CodeEdge.target_node_id == nid,
+                )
+            ).all()
+            for e in in_edges:
+                if e.source_node_id not in visited:
+                    next_level.add(e.source_node_id)
+                    visited.add(e.source_node_id)
+
+        current_level = next_level
+
+    neighbor_nodes = session.exec(
+        select(CodeNode).where(
+            CodeNode.project_id == project_id,
+            CodeNode.id.in_(visited),
+        )
+    ).all()
+
+    neighbor_edges = session.exec(
+        select(CodeEdge).where(
+            CodeEdge.project_id == project_id,
+            CodeEdge.source_node_id.in_(visited),
+            CodeEdge.target_node_id.in_(visited),
+        )
+    ).all()
+
+    return {
+        "nodes": [_node_to_dict(n, session) for n in neighbor_nodes],
+        "edges": [
+            {
+                "source": str(e.source_node_id),
+                "target": str(e.target_node_id),
+                "type": e.edge_type,
+            }
+            for e in neighbor_edges
+        ],
+    }
