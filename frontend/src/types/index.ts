@@ -20,7 +20,7 @@ export interface GraphData {
 }
 
 export interface WsMessage {
-  type: 'progress' | 'graph_update' | 'complete' | 'error' | 'ai_stream'
+  type: 'progress' | 'graph_update' | 'complete' | 'error' | 'ai_stream' | 'ping'
   data: Record<string, unknown>
 }
 

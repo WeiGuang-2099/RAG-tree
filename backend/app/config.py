@@ -12,9 +12,12 @@ class Settings(BaseSettings):
     max_files: int = 500
     max_file_size_mb: int = 5
     supported_extensions: list[str] = [
-        ".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".java", ".vue"
+        ".py", ".js", ".ts", ".tsx", ".jsx", ".vue"
     ]
     ai_timeout: int = 60
+    allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ws_heartbeat_interval: int = 30
+    embedding_cache_enabled: bool = True
 
 
 @lru_cache

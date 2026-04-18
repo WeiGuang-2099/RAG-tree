@@ -93,15 +93,34 @@ async def process_files(
 
             all_edges.extend(result.get("edges", []))
 
-        node_name_to_id: dict[str, str] = {
-            n["name"]: n["id"] for n in all_nodes
+        # Composite key mapping: (file_path, name) -> node_id
+        node_key_to_id: dict[tuple[str, str], str] = {
+            (n["file_path"], n["name"]): n["id"] for n in all_nodes
         }
+        # Name-only lookup for cross-file references (imports): name -> [id1, id2, ...]
+        node_name_to_ids: dict[str, list[str]] = {}
+        for n in all_nodes:
+            name = n["name"]
+            if name not in node_name_to_ids:
+                node_name_to_ids[name] = []
+            node_name_to_ids[name].append(n["id"])
 
         for edge_data in all_edges:
             source_name = edge_data.get("source", "")
             target_name = edge_data.get("target", "")
-            source_id = node_name_to_id.get(source_name)
-            target_id = node_name_to_id.get(target_name)
+            source_file = edge_data.get("source_file", "")
+            target_file = edge_data.get("target_file", "")
+
+            # Try same-file lookup first
+            source_id = node_key_to_id.get((source_file, source_name))
+            target_id = node_key_to_id.get((target_file, target_name))
+
+            # Fall back to name-only lookup for cross-file references
+            if not source_id and source_name in node_name_to_ids:
+                source_id = node_name_to_ids[source_name][0]
+            if not target_id and target_name in node_name_to_ids:
+                target_id = node_name_to_ids[target_name][0]
+
             if source_id and target_id:
                 code_edge = CodeEdge(
                     project_id=project_id,

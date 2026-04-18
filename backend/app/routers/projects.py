@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
+from sqlalchemy import func
 from pydantic import BaseModel
 from app.database import get_session
 from app.models.project import Project, File as FileModel, CodeNode, CodeEdge
@@ -19,31 +20,33 @@ class RenameProjectRequest(BaseModel):
 @router.get("/")
 def list_projects(session: Session = Depends(get_session)):
     """List all projects with file/node/edge counts."""
-    projects = session.exec(
-        select(Project).order_by(Project.created_at.desc())
+    # Single aggregated query with outerjoins and counts
+    results = session.exec(
+        select(
+            Project,
+            func.count(func.distinct(FileModel.id)).label("file_count"),
+            func.count(func.distinct(CodeNode.id)).label("node_count"),
+            func.count(func.distinct(CodeEdge.id)).label("edge_count"),
+        )
+        .outerjoin(FileModel, FileModel.project_id == Project.id)
+        .outerjoin(CodeNode, CodeNode.project_id == Project.id)
+        .outerjoin(CodeEdge, CodeEdge.project_id == Project.id)
+        .group_by(Project.id)
+        .order_by(Project.created_at.desc())
     ).all()
 
-    result = []
-    for p in projects:
-        file_count = len(session.exec(
-            select(FileModel).where(FileModel.project_id == p.id)
-        ).all())
-        node_count = len(session.exec(
-            select(CodeNode).where(CodeNode.project_id == p.id)
-        ).all())
-        edge_count = len(session.exec(
-            select(CodeEdge).where(CodeEdge.project_id == p.id)
-        ).all())
-        result.append({
-            "id": p.id,
-            "name": p.name,
-            "status": p.status,
-            "created_at": p.created_at.isoformat(),
+    return [
+        {
+            "id": project.id,
+            "name": project.name,
+            "status": project.status,
+            "created_at": project.created_at.isoformat(),
             "file_count": file_count,
             "node_count": node_count,
             "edge_count": edge_count,
-        })
-    return result
+        }
+        for project, file_count, node_count, edge_count in results
+    ]
 
 
 @router.post("/")
@@ -70,20 +73,24 @@ def get_project(
     session: Session = Depends(get_session),
 ):
     """Get project details."""
-    project = session.get(Project, project_id)
-    if not project:
+    result = session.exec(
+        select(
+            Project,
+            func.count(func.distinct(FileModel.id)).label("file_count"),
+            func.count(func.distinct(CodeNode.id)).label("node_count"),
+            func.count(func.distinct(CodeEdge.id)).label("edge_count"),
+        )
+        .outerjoin(FileModel, FileModel.project_id == Project.id)
+        .outerjoin(CodeNode, CodeNode.project_id == Project.id)
+        .outerjoin(CodeEdge, CodeEdge.project_id == Project.id)
+        .where(Project.id == project_id)
+        .group_by(Project.id)
+    ).first()
+
+    if not result:
         raise HTTPException(status_code=404, detail="Project not found.")
 
-    file_count = len(session.exec(
-        select(FileModel).where(FileModel.project_id == project_id)
-    ).all())
-    node_count = len(session.exec(
-        select(CodeNode).where(CodeNode.project_id == project_id)
-    ).all())
-    edge_count = len(session.exec(
-        select(CodeEdge).where(CodeEdge.project_id == project_id)
-    ).all())
-
+    project, file_count, node_count, edge_count = result
     return {
         "id": project.id,
         "name": project.name,
@@ -125,23 +132,10 @@ def delete_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
 
-    edges = session.exec(
-        select(CodeEdge).where(CodeEdge.project_id == project_id)
-    ).all()
-    for edge in edges:
-        session.delete(edge)
-
-    nodes = session.exec(
-        select(CodeNode).where(CodeNode.project_id == project_id)
-    ).all()
-    for node in nodes:
-        session.delete(node)
-
-    files = session.exec(
-        select(FileModel).where(FileModel.project_id == project_id)
-    ).all()
-    for f in files:
-        session.delete(f)
+    # Bulk delete using delete statements (more efficient than select-then-delete)
+    session.exec(delete(CodeEdge).where(CodeEdge.project_id == project_id))
+    session.exec(delete(CodeNode).where(CodeNode.project_id == project_id))
+    session.exec(delete(FileModel).where(FileModel.project_id == project_id))
 
     session.delete(project)
     session.commit()

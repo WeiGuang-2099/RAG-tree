@@ -1,8 +1,6 @@
 from app.services.parser_service import get_parser, parse_file, PARSER_REGISTRY
 from app.parsers.python_parser import PythonParser
 from app.parsers.javascript_parser import JavaScriptParser
-from app.parsers.go_parser import GoParser
-from app.parsers.java_parser import JavaParser
 from app.parsers.vue_parser import VueParser
 
 
@@ -10,8 +8,8 @@ def test_parser_registry():
     assert "py" in PARSER_REGISTRY
     assert "js" in PARSER_REGISTRY
     assert "ts" in PARSER_REGISTRY
-    assert "go" in PARSER_REGISTRY
-    assert "java" in PARSER_REGISTRY
+    assert "tsx" in PARSER_REGISTRY
+    assert "jsx" in PARSER_REGISTRY
     assert "vue" in PARSER_REGISTRY
 
 
@@ -28,16 +26,6 @@ def test_get_parser_javascript():
 def test_get_parser_typescript():
     parser = get_parser("ts")
     assert isinstance(parser, JavaScriptParser)
-
-
-def test_get_parser_go():
-    parser = get_parser("go")
-    assert isinstance(parser, GoParser)
-
-
-def test_get_parser_java():
-    parser = get_parser("java")
-    assert isinstance(parser, JavaParser)
 
 
 def test_get_parser_unsupported():

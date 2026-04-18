@@ -29,7 +29,11 @@ export function useAiChat() {
 
       setIsStreaming(true)
       try {
-        const result = await sendAiChat(currentProjectId, text, contextNodeId)
+        const messages = useChatStore.getState().messages
+        const history = messages
+          .slice(-6)
+          .map((m) => ({ role: m.role, content: m.content }))
+        const result = await sendAiChat(currentProjectId, text, contextNodeId, history)
         addMessage({
           id: crypto.randomUUID(),
           role: 'assistant',

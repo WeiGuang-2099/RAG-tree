@@ -55,6 +55,10 @@ export function useWebSocket(clientId: string) {
       try {
         const msg: WsMessage = JSON.parse(event.data)
         switch (msg.type) {
+          case 'ping':
+            // Respond to server heartbeat
+            ws.send(JSON.stringify({ type: 'pong' }))
+            break
           case 'progress':
             setProgress(msg.data as { current: number; total: number; detail: string })
             break

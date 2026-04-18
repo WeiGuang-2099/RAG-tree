@@ -106,6 +106,27 @@ class ConnectionManager:
             client_id,
         )
 
+    async def send_ping(self, client_id: str):
+        """Send a ping message to a specific client."""
+        connection = self.active_connections.get(client_id)
+        if connection:
+            try:
+                await connection.send_json({"type": "ping"})
+            except Exception:
+                self.disconnect(client_id)
+
+    async def heartbeat_all(self):
+        """Send ping to all active connections and remove failed ones."""
+        disconnected = []
+        for client_id, connection in list(self.active_connections.items()):
+            try:
+                await connection.send_json({"type": "ping"})
+            except Exception:
+                disconnected.append(client_id)
+
+        for client_id in disconnected:
+            self.disconnect(client_id)
+
 
 # Global connection manager instance
 manager = ConnectionManager()

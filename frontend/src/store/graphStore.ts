@@ -17,6 +17,10 @@ interface GraphStore {
   progress: Progress
   errorMessage: string | null
 
+  // Internal cache fields
+  _cachedFilteredGraph: GraphData | null
+  _cacheKey: string | null
+
   setGraphData: (data: GraphData) => void
   updateGraphData: (incremental: GraphData) => void
   setSelectedNode: (node: GraphNode | null) => void
@@ -39,6 +43,10 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
   progress: { current: 0, total: 0, detail: '' },
   errorMessage: null,
 
+  // Internal cache fields
+  _cachedFilteredGraph: null,
+  _cacheKey: null,
+
   setGraphData: (data) => set({ graphData: data }),
   updateGraphData: (incremental) =>
     set((state) => ({
@@ -56,7 +64,18 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
   setErrorMessage: (message) => set({ errorMessage: message }),
 
   getFilteredGraph: () => {
-    const { graphData, searchQuery, filterFilePath } = get()
+    const { graphData, searchQuery, filterFilePath, _cachedFilteredGraph, _cacheKey } = get()
+
+    // Compute cache key from inputs
+    const nodeCount = graphData.nodes.length
+    const edgeCount = graphData.edges.length
+    const cacheKey = `${nodeCount}:${edgeCount}:${searchQuery}:${filterFilePath}`
+
+    // Return cached result if cache key matches
+    if (_cacheKey === cacheKey && _cachedFilteredGraph) {
+      return _cachedFilteredGraph
+    }
+
     let nodes = graphData.nodes
     let edges = graphData.edges
 
@@ -77,15 +96,23 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
           .filter((n) => n.name.toLowerCase().includes(q))
           .map((n) => n.id),
       )
-      return {
+      // Filter edges to only include those where BOTH source AND target are in the matched node set
+      const filteredEdges = edges.filter(
+        (e) => matchedIds.has(e.source) && matchedIds.has(e.target),
+      )
+      const result = {
         nodes: nodes.map((n) => ({
           ...n,
           highlighted: matchedIds.has(n.id),
         })),
-        edges,
+        edges: filteredEdges,
       }
+      set({ _cachedFilteredGraph: result, _cacheKey: cacheKey })
+      return result
     }
 
-    return { nodes, edges }
+    const result = { nodes, edges }
+    set({ _cachedFilteredGraph: result, _cacheKey: cacheKey })
+    return result
   },
 }))

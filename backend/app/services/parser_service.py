@@ -3,8 +3,6 @@
 from app.parsers.base import BaseParser
 from app.parsers.python_parser import PythonParser
 from app.parsers.javascript_parser import JavaScriptParser
-from app.parsers.go_parser import GoParser
-from app.parsers.java_parser import JavaParser
 from app.parsers.vue_parser import VueParser
 
 
@@ -14,8 +12,6 @@ PARSER_REGISTRY: dict[str, type[BaseParser]] = {
     "ts": JavaScriptParser,
     "tsx": JavaScriptParser,
     "jsx": JavaScriptParser,
-    "go": GoParser,
-    "java": JavaParser,
     "vue": VueParser,
 }
 

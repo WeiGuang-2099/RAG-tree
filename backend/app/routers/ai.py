@@ -14,6 +14,7 @@ class ChatRequest(BaseModel):
     project_id: int
     message: str
     context_node_id: int | None = None
+    history: list[dict] = []
 
 
 class ArchitectureRequest(BaseModel):
@@ -93,6 +94,7 @@ async def chat(
         message=request.message,
         graph_context=graph_summary,
         node_context=context,
+        history=request.history,
     )
 
     return {"response": response}

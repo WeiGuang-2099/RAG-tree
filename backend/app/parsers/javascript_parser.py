@@ -109,13 +109,92 @@ class JavaScriptParser(BaseParser):
 
         # Extract function calls and create edges
         known_names = set(func_names) | {m.group(1) for m in self.CLASS_PATTERN.finditer(source_code)}
-        for match in self.CALL_PATTERN.finditer(source_code):
-            called_name = match.group(1)
-            if called_name in known_names and called_name not in func_names:
-                # This is a class instantiation or method call
-                for func_name in func_names:
-                    # Simple heuristic: if the call appears inside a function scope
-                    pass
+        class_names = {m.group(1) for m in self.CLASS_PATTERN.finditer(source_code)}
+
+        # Build function scope map: (func_name, start_pos, end_pos)
+        func_scopes = []
+        for match in self.FUNC_DECL_PATTERN.finditer(source_code):
+            func_name = match.group(1)
+            func_start = match.start()
+            func_body_start = source_code.find("{", func_start)
+            if func_body_start == -1:
+                continue
+            brace_count = 0
+            func_body_end = func_body_start
+            for i, char in enumerate(source_code[func_body_start:], func_body_start):
+                if char == "{":
+                    brace_count += 1
+                elif char == "}":
+                    brace_count -= 1
+                    if brace_count == 0:
+                        func_body_end = i + 1
+                        break
+            func_scopes.append((func_name, func_body_start, func_body_end))
+
+        # Also handle arrow functions with their scope
+        for match in self.ARROW_FUNC_PATTERN.finditer(source_code):
+            func_name = match.group(1)
+            func_start = match.start()
+            # Arrow function body: either block { ... } or expression
+            arrow_pos = source_code.find("=>", func_start)
+            if arrow_pos == -1:
+                continue
+            after_arrow = arrow_pos + 2
+            while after_arrow < len(source_code) and source_code[after_arrow] in " \t":
+                after_arrow += 1
+            if after_arrow < len(source_code) and source_code[after_arrow] == "{":
+                # Block body
+                brace_count = 0
+                func_body_start = after_arrow
+                func_body_end = func_body_start
+                for i, char in enumerate(source_code[func_body_start:], func_body_start):
+                    if char == "{":
+                        brace_count += 1
+                    elif char == "}":
+                        brace_count -= 1
+                        if brace_count == 0:
+                            func_body_end = i + 1
+                            break
+                func_scopes.append((func_name, func_body_start, func_body_end))
+            else:
+                # Expression body - find end of line or semicolon
+                expr_start = after_arrow
+                expr_end = source_code.find(";", expr_start)
+                if expr_end == -1:
+                    newline_pos = source_code.find("\n", expr_start)
+                    if newline_pos == -1:
+                        expr_end = len(source_code)
+                    else:
+                        expr_end = newline_pos
+                else:
+                    expr_end += 1
+                func_scopes.append((func_name, expr_start, expr_end))
+
+        # Track edges to avoid duplicates
+        existing_edges = set()
+        for edge in edges:
+            existing_edges.add((edge.get("source"), edge.get("target"), edge.get("type")))
+
+        # Find function calls within each function's scope
+        for func_name, body_start, body_end in func_scopes:
+            func_body = source_code[body_start:body_end]
+            for called_name in known_names:
+                if called_name == func_name:
+                    continue  # Skip self-calls
+                # Look for calls to other known functions/classes
+                call_pattern = re.compile(rf"\b{re.escape(called_name)}\s*\(")
+                if call_pattern.search(func_body):
+                    edge_type = "instantiates" if called_name in class_names else "calls"
+                    edge_key = (func_name, called_name, edge_type)
+                    if edge_key not in existing_edges:
+                        edges.append(
+                            self._make_edge(
+                                source=func_name,
+                                target=called_name,
+                                edge_type=edge_type,
+                            )
+                        )
+                        existing_edges.add(edge_key)
 
         return {"nodes": nodes, "edges": edges}
 

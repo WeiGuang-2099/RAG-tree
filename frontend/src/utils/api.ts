@@ -44,6 +44,7 @@ export async function sendAiChat(
   projectId: number,
   message: string,
   contextNodeId?: string,
+  history?: Array<{ role: string; content: string }>,
 ): Promise<{ response: string }> {
   const res = await fetch(`${API_BASE}/ai/chat`, {
     method: 'POST',
@@ -52,6 +53,7 @@ export async function sendAiChat(
       project_id: projectId,
       message,
       context_node_id: contextNodeId ? parseInt(contextNodeId) : null,
+      history,
     }),
   })
   if (!res.ok) {

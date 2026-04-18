@@ -1,7 +1,5 @@
 from app.parsers.python_parser import PythonParser
 from app.parsers.javascript_parser import JavaScriptParser
-from app.parsers.go_parser import GoParser
-from app.parsers.java_parser import JavaParser
 from app.parsers.vue_parser import VueParser
 
 
@@ -28,34 +26,6 @@ class App extends React.Component {
 
 function greet(name) {
     return "Hello " + name;
-}
-'''
-
-GO_CODE = '''
-package main
-
-import (
-    "fmt"
-)
-
-func main() {
-    fmt.Println("Hello")
-}
-
-type Server struct {
-    Port int
-}
-'''
-
-JAVA_CODE = '''
-import java.util.List;
-
-public class Main extends Base {
-    public static void main(String[] args) {
-        System.out.println("Hello");
-    }
-
-    private void process() {}
 }
 '''
 
@@ -123,22 +93,6 @@ def test_javascript_parser():
     node_names = [n["name"] for n in result["nodes"]]
     assert "App" in node_names
     assert "greet" in node_names
-
-
-def test_go_parser():
-    parser = GoParser()
-    result = parser.parse(GO_CODE)
-    assert "nodes" in result
-    node_names = [n["name"] for n in result["nodes"]]
-    assert "main" in node_names
-
-
-def test_java_parser():
-    parser = JavaParser()
-    result = parser.parse(JAVA_CODE)
-    assert "nodes" in result
-    node_names = [n["name"] for n in result["nodes"]]
-    assert "Main" in node_names
 
 
 def test_vue_parser_setup():

@@ -1,5 +1,7 @@
 """ZhipuAI client wrapper service."""
 
+import hashlib
+
 from app.config import get_settings
 from typing import AsyncGenerator
 
@@ -10,6 +12,7 @@ class AiService:
     def __init__(self):
         self.settings = get_settings()
         self._client = None
+        self._embedding_cache: dict[str, list[float]] = {}
 
     def _get_client(self):
         if self._client is None:
@@ -22,21 +25,64 @@ class AiService:
 
     def embed_text(self, text: str) -> list[float]:
         """Generate embedding vector for a single text using Embedding-3."""
+        text_hash = hashlib.sha256(text.encode()).hexdigest()
+
+        if self.settings.embedding_cache_enabled and text_hash in self._embedding_cache:
+            return self._embedding_cache[text_hash]
+
         client = self._get_client()
         response = client.embeddings.create(
             model="embedding-3",
             input=text,
         )
-        return response.data[0].embedding
+        embedding = response.data[0].embedding
+
+        if self.settings.embedding_cache_enabled:
+            self._embedding_cache[text_hash] = embedding
+
+        return embedding
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Generate embedding vectors for multiple texts using Embedding-3."""
-        client = self._get_client()
-        response = client.embeddings.create(
-            model="embedding-3",
-            input=texts,
-        )
-        return [item.embedding for item in response.data]
+        if not self.settings.embedding_cache_enabled:
+            client = self._get_client()
+            response = client.embeddings.create(
+                model="embedding-3",
+                input=texts,
+            )
+            return [item.embedding for item in response.data]
+
+        # Check cache for each text
+        results: list[list[float] | None] = [None] * len(texts)
+        uncached_indices: list[int] = []
+        uncached_texts: list[str] = []
+
+        for i, text in enumerate(texts):
+            text_hash = hashlib.sha256(text.encode()).hexdigest()
+            if text_hash in self._embedding_cache:
+                results[i] = self._embedding_cache[text_hash]
+            else:
+                uncached_indices.append(i)
+                uncached_texts.append(text)
+
+        # Fetch embeddings for uncached texts
+        if uncached_texts:
+            client = self._get_client()
+            response = client.embeddings.create(
+                model="embedding-3",
+                input=uncached_texts,
+            )
+
+            for idx, embedding in zip(uncached_indices, response.data):
+                text_hash = hashlib.sha256(texts[idx].encode()).hexdigest()
+                self._embedding_cache[text_hash] = embedding.embedding
+                results[idx] = embedding.embedding
+
+        return results  # type: ignore[return-value]
+
+    def clear_cache(self) -> None:
+        """Clear the embedding cache."""
+        self._embedding_cache.clear()
 
     @staticmethod
     def cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -98,6 +144,7 @@ class AiService:
         message: str,
         graph_context: str = "",
         node_context: str = "",
+        history: list[dict] = [],
     ) -> str:
         """Send a chat message with code graph context."""
         client = self._get_client()
@@ -115,13 +162,15 @@ class AiService:
         if node_context:
             user_content = f"{user_content}\n\nRelevant code:\n{node_context}"
 
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in history:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        messages.append({"role": "user", "content": user_content})
+
         try:
             response = client.chat.completions.create(
                 model="glm-4",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content},
-                ],
+                messages=messages,
                 timeout=self.settings.ai_timeout,
             )
             return response.choices[0].message.content
