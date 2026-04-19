@@ -20,8 +20,22 @@ coverage/
 # Trae IDE
 .trae/
 
+# OMC (Qoder)
+.omc/
+
+# Claude IDE
+.claude/
+
+# Qoder IDE
+.qoder/
+
 # Build output
 frontend/dist/
 
 # Test cache
 backend/.pytest_cache/
+
+# Project temp files
+prd.json
+ralph/
+tasks/
