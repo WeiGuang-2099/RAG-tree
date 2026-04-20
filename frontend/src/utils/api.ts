@@ -63,6 +63,57 @@ export async function sendAiChat(
   return res.json()
 }
 
+export async function streamAiChat(
+  projectId: number,
+  message: string,
+  onChunk: (chunk: string) => void,
+  onMeta: (referencedNodeIds: number[]) => void,
+  contextNodeId?: string,
+  history?: Array<{ role: string; content: string }>,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/ai/chat/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      project_id: projectId,
+      message,
+      context_node_id: contextNodeId ? parseInt(contextNodeId) : null,
+      history,
+    }),
+  })
+  if (!res.ok) {
+    throw new Error('AI chat stream failed')
+  }
+
+  const reader = res.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(line.slice(6))
+          if (data.type === 'chunk') onChunk(data.content)
+          else if (data.type === 'meta') onMeta(data.referenced_node_ids)
+          else if (data.type === 'done') return
+        } catch {
+          // skip malformed data
+        }
+      }
+    }
+  }
+}
+
 export async function getArchitecture(
   projectId: number,
 ): Promise<{ architecture: string }> {
@@ -133,4 +184,11 @@ export async function getDashboard(projectId: number): Promise<DashboardData> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/dashboard`)
   if (!res.ok) throw new Error('Failed to get dashboard')
   return res.json()
+}
+
+export async function deleteFile(projectId: number, fileId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error('Failed to delete file')
 }

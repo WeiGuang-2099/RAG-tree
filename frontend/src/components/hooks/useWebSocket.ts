@@ -1,7 +1,8 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { createWsUrl } from '../../utils/ws'
 import { useGraphStore } from '../../store/graphStore'
 import { useChatStore } from '../../store/chatStore'
+import { getFullGraph } from '../../utils/api'
 import type { WsMessage } from '../../types'
 
 const MAX_RETRIES = 10
@@ -21,6 +22,7 @@ export function useWebSocket(clientId: string) {
   const updateLastMessage = useChatStore((s) => s.updateLastMessage)
   const setIsStreaming = useChatStore((s) => s.setIsStreaming)
   const connectedRef = useRef(false)
+  const [isConnected, setIsConnected] = useState(false)
 
   const clearRetryTimer = useCallback(() => {
     if (retryTimerRef.current !== null) {
@@ -49,6 +51,7 @@ export function useWebSocket(clientId: string) {
       connectedRef.current = true
       connectingRef.current = false
       retryCountRef.current = 0
+      if (mountedRef.current) setIsConnected(true)
     }
 
     ws.onmessage = (event) => {
@@ -68,7 +71,16 @@ export function useWebSocket(clientId: string) {
           case 'complete':
             setIsLoading(false)
             setErrorMessage(null)
+            // Fetch the full graph now that processing is done
             import('../../store/projectStore').then(({ useProjectStore }) => {
+              const projectId = useProjectStore.getState().currentProjectId
+              if (projectId) {
+                getFullGraph(projectId).then((graphData) => {
+                  useGraphStore.getState().setGraphData(graphData)
+                }).catch(() => {
+                  // Graph fetch failed — data from graph_update may still be shown
+                })
+              }
               useProjectStore.getState().fetchProjects()
             })
             break
@@ -87,6 +99,7 @@ export function useWebSocket(clientId: string) {
 
     ws.onclose = (event) => {
       connectedRef.current = false
+      if (mountedRef.current) setIsConnected(false)
       connectingRef.current = false
       wsRef.current = null
       if (!mountedRef.current) return
@@ -126,6 +139,7 @@ export function useWebSocket(clientId: string) {
         wsRef.current = null
       }
       connectedRef.current = false
+      setIsConnected(false)
     }
   }, [connect])
 
@@ -144,7 +158,7 @@ export function useWebSocket(clientId: string) {
   }, [])
 
   return {
-    isConnected: connectedRef.current,
+    isConnected,
     send,
     disconnect,
   }

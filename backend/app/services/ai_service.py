@@ -226,6 +226,48 @@ class AiService:
         except Exception as e:
             raise RuntimeError(f"AI service error: {str(e)}")
 
+    async def chat_stream(
+        self,
+        message: str,
+        graph_context: str = "",
+        node_context: str = "",
+        history: list[dict] = [],
+    ) -> AsyncGenerator[str, None]:
+        """Stream a chat response chunk by chunk."""
+        client = self._get_client()
+
+        system_prompt = (
+            "You are a code analysis assistant. "
+            "You help developers understand code structure, dependencies, "
+            "and relationships in their codebase using graph-based analysis. "
+            "Provide clear, concise, and technically accurate responses."
+        )
+
+        user_content = message
+        if graph_context:
+            user_content = f"Graph context: {graph_context}\n\n{user_content}"
+        if node_context:
+            user_content = f"{user_content}\n\nRelevant code:\n{node_context}"
+
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in history:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        messages.append({"role": "user", "content": user_content})
+
+        try:
+            response = client.chat.completions.create(
+                model="glm-4",
+                messages=messages,
+                stream=True,
+                timeout=self.settings.ai_timeout,
+            )
+            for chunk in response:
+                delta = chunk.choices[0].delta
+                if hasattr(delta, 'content') and delta.content:
+                    yield delta.content
+        except Exception as e:
+            raise RuntimeError(f"AI streaming error: {str(e)}")
+
     async def analyze_architecture(
         self,
         nodes_summary: str,

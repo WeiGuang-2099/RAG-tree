@@ -6,7 +6,7 @@ import { useProjectStore } from '../../store/projectStore'
 import GlassCard from './GlassCard'
 import ProgressBar from './ProgressBar'
 
-const ACCEPTED_EXTENSIONS = ['.py', '.js', '.ts', '.tsx', '.jsx', '.go', '.java', '.vue']
+const ACCEPTED_EXTENSIONS = ['.py', '.js', '.ts', '.tsx', '.jsx', '.vue']
 
 export default function FileUpload() {
   const [isDragging, setIsDragging] = useState(false)
@@ -33,7 +33,7 @@ export default function FileUpload() {
       })
 
       if (validFiles.length === 0) {
-        setError('No supported files found. Supported: .py .js .ts .tsx .jsx .go .java .vue')
+        setError('No supported files found. Supported: .py .js .ts .tsx .jsx .vue')
         return
       }
 
@@ -51,6 +51,10 @@ export default function FileUpload() {
         setCurrentProjectId(result.project_id)
         await selectProject(result.project_id)
         await fetchProjects()
+        // Keep isLoading=true for background processing.
+        // selectProject sets it false after fetching the (still empty) graph,
+        // but the backend is still parsing — the WebSocket will clear it on complete.
+        setIsLoading(true)
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Upload failed'
         setError(msg)
@@ -107,7 +111,7 @@ export default function FileUpload() {
           {uploading ? 'Uploading...' : 'Drag & drop code files here, or click to select'}
         </p>
         <p className="text-xs text-gray-400 mt-1">
-          .py .js .ts .tsx .jsx .go .java .vue
+          .py .js .ts .tsx .jsx .vue
         </p>
       </div>
       {displayError && (
