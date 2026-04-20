@@ -39,6 +39,7 @@ export function useAiChat() {
           role: 'assistant',
           content: result.response,
           timestamp: Date.now(),
+          referenced_node_ids: result.referenced_node_ids,
         })
       } catch {
         addMessage({

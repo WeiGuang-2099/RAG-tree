@@ -1,6 +1,14 @@
 import { useGraphStore } from '../../store/graphStore'
+import { useChatStore } from '../../store/chatStore'
 
-const LEVELS = ['module', 'function', 'class'] as const
+const LEVELS = ['all', 'module', 'class', 'function'] as const
+
+const LEVEL_LABELS: Record<string, string> = {
+  all: 'All',
+  module: 'Module',
+  class: 'Class',
+  function: 'Function',
+}
 
 export default function GraphControls() {
   const viewLevel = useGraphStore((s) => s.viewLevel)
@@ -9,6 +17,18 @@ export default function GraphControls() {
   const setSearchQuery = useGraphStore((s) => s.setSearchQuery)
   const filterFilePath = useGraphStore((s) => s.filterFilePath)
   const setFilterFilePath = useGraphStore((s) => s.setFilterFilePath)
+  const showCycles = useGraphStore((s) => s.showCycles)
+  const toggleShowCycles = useGraphStore((s) => s.toggleShowCycles)
+  const fetchCycles = useGraphStore((s) => s.fetchCycles)
+  const currentProjectId = useChatStore((s) => s.currentProjectId)
+
+  const handleToggleCycles = () => {
+    toggleShowCycles()
+    // Fetch cycles when enabling (if we have a project)
+    if (!showCycles && currentProjectId) {
+      fetchCycles(currentProjectId)
+    }
+  }
 
   return (
     <div className="glass-card px-4 py-2 flex items-center gap-4 flex-wrap">
@@ -24,7 +44,7 @@ export default function GraphControls() {
                 : 'bg-white/30 text-gray-600 hover:bg-white/50'
             }`}
           >
-            {level}
+            {LEVEL_LABELS[level]}
           </button>
         ))}
       </div>
@@ -48,6 +68,17 @@ export default function GraphControls() {
           className="w-48 px-3 py-1.5 rounded-lg text-sm bg-white/30 border border-white/20 outline-none focus:border-spring-pink transition-colors"
         />
       </div>
+
+      <button
+        onClick={handleToggleCycles}
+        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+          showCycles
+            ? 'bg-red-400 text-white'
+            : 'bg-white/30 text-gray-600 hover:bg-white/50'
+        }`}
+      >
+        Show Cycles
+      </button>
     </div>
   )
 }

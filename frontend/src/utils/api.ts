@@ -1,4 +1,4 @@
-import type { GraphData, UploadResponse, ProjectInfo } from '../types'
+import type { GraphData, UploadResponse, ProjectInfo, DashboardData, CycleData } from '../types'
 
 const API_BASE = '/api'
 
@@ -45,7 +45,7 @@ export async function sendAiChat(
   message: string,
   contextNodeId?: string,
   history?: Array<{ role: string; content: string }>,
-): Promise<{ response: string }> {
+): Promise<{ response: string; referenced_node_ids: number[] }> {
   const res = await fetch(`${API_BASE}/ai/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -121,4 +121,16 @@ export async function deleteProject(projectId: number): Promise<void> {
     method: 'DELETE',
   })
   if (!res.ok) throw new Error('Failed to delete project')
+}
+
+export async function getCycles(projectId: number): Promise<CycleData> {
+  const res = await fetch(`${API_BASE}/graph/cycles/${projectId}`)
+  if (!res.ok) throw new Error('Failed to get cycles')
+  return res.json()
+}
+
+export async function getDashboard(projectId: number): Promise<DashboardData> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/dashboard`)
+  if (!res.ok) throw new Error('Failed to get dashboard')
+  return res.json()
 }

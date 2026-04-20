@@ -11,7 +11,7 @@ export interface GraphNode {
 export interface GraphEdge {
   source: string
   target: string
-  type: 'imports' | 'calls' | 'inherits' | 'uses_data'
+  type: 'imports' | 'calls' | 'inherits' | 'uses_data' | 'instantiates'
 }
 
 export interface GraphData {
@@ -30,6 +30,7 @@ export interface ChatMessage {
   content: string
   timestamp: number
   context_node_id?: string
+  referenced_node_ids?: number[]
 }
 
 export interface UploadResponse {
@@ -48,4 +49,24 @@ export interface ProjectInfo {
   file_count: number
   node_count: number
   edge_count: number
+}
+
+export interface DashboardData {
+  node_count: number
+  edge_count: number
+  cycle_count: number
+  avg_degree: number
+  density: number
+  language_distribution: Record<string, number>
+  top_hubs: Array<{
+    id: string
+    name: string
+    type: string
+    centrality: number
+  }>
+}
+
+export interface CycleData {
+  cycles: string[][]
+  count: number
 }
