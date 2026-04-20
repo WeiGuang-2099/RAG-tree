@@ -51,6 +51,10 @@ export default function FileUpload() {
         setCurrentProjectId(result.project_id)
         await selectProject(result.project_id)
         await fetchProjects()
+        // Keep isLoading=true for background processing.
+        // selectProject sets it false after fetching the (still empty) graph,
+        // but the backend is still parsing — the WebSocket will clear it on complete.
+        setIsLoading(true)
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Upload failed'
         setError(msg)

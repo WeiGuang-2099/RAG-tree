@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { createWsUrl } from '../../utils/ws'
 import { useGraphStore } from '../../store/graphStore'
 import { useChatStore } from '../../store/chatStore'
+import { getFullGraph } from '../../utils/api'
 import type { WsMessage } from '../../types'
 
 const MAX_RETRIES = 10
@@ -68,7 +69,16 @@ export function useWebSocket(clientId: string) {
           case 'complete':
             setIsLoading(false)
             setErrorMessage(null)
+            // Fetch the full graph now that processing is done
             import('../../store/projectStore').then(({ useProjectStore }) => {
+              const projectId = useProjectStore.getState().currentProjectId
+              if (projectId) {
+                getFullGraph(projectId).then((graphData) => {
+                  useGraphStore.getState().setGraphData(graphData)
+                }).catch(() => {
+                  // Graph fetch failed — data from graph_update may still be shown
+                })
+              }
               useProjectStore.getState().fetchProjects()
             })
             break
