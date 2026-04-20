@@ -139,6 +139,55 @@ class AiService:
         scored.sort(key=lambda x: x["similarity"], reverse=True)
         return scored[:top_k]
 
+    @staticmethod
+    def _serialize_graph_context(
+        subgraph_nodes: list[dict],
+        subgraph_edges: list[dict],
+    ) -> str:
+        """Convert a NetworkX subgraph into structured text for LLM consumption.
+
+        Produces an indented tree format showing node hierarchy and relationships.
+        Output is truncated to ~2000 characters.
+        """
+        if not subgraph_nodes:
+            return ""
+
+        # Build adjacency: node_id -> list of (target_name, edge_type)
+        adj_out: dict[str, list[tuple[str, str]]] = {}
+        for edge in subgraph_edges:
+            src = edge.get("source", "")
+            tgt_name = edge.get("target", "")
+            edge_type = edge.get("type", "relates_to")
+            adj_out.setdefault(src, []).append((tgt_name, edge_type))
+
+        # Index nodes by id for name lookups
+        node_by_id: dict[str, dict] = {n.get("id", ""): n for n in subgraph_nodes}
+
+        lines: list[str] = []
+        for node in subgraph_nodes:
+            nid = node.get("id", "")
+            name = node.get("name", nid)
+            ntype = node.get("type", "Unknown")
+            fpath = node.get("file_path", "")
+            line_info = f" ({fpath})" if fpath else ""
+            lines.append(f"{ntype}: {name}{line_info}")
+
+            # Add outgoing relationships as indented children
+            for tgt_id, edge_type in adj_out.get(nid, []):
+                tgt_node = node_by_id.get(tgt_id, {})
+                tgt_name = tgt_node.get("name", tgt_id)
+                tgt_type = tgt_node.get("type", "")
+                label = f"{tgt_type}: {tgt_name}" if tgt_type else tgt_name
+                lines.append(f"  -{edge_type}-> {label}")
+
+        result = "\n".join(lines)
+
+        # Truncate to ~2000 characters, keeping complete lines
+        if len(result) > 2000:
+            result = result[:2000].rsplit("\n", 1)[0] + "\n..."
+
+        return result
+
     async def chat(
         self,
         message: str,

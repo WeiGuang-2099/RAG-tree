@@ -87,3 +87,49 @@ def test_ai_chat_endpoint_project_not_found(client):
 def test_ai_architecture_endpoint_project_not_found(client):
     response = client.post("/api/ai/architecture", json={"project_id": 9999})
     assert response.status_code in (404, 500)
+
+
+# US-202: _serialize_graph_context tests
+
+
+def test_serialize_graph_context_basic():
+    from app.services.ai_service import AiService
+
+    nodes = [
+        {"id": "a", "name": "parse_file", "type": "Function", "file_path": "parser.py"},
+        {"id": "b", "name": "tokenize", "type": "Function", "file_path": "lexer.py"},
+    ]
+    edges = [{"source": "a", "target": "b", "type": "calls"}]
+
+    result = AiService._serialize_graph_context(nodes, edges)
+    assert "Function: parse_file" in result
+    assert "Function: tokenize" in result
+    assert "-calls->" in result
+
+
+def test_serialize_graph_context_empty():
+    from app.services.ai_service import AiService
+
+    assert AiService._serialize_graph_context([], []) == ""
+    assert AiService._serialize_graph_context([], [{"source": "a", "target": "b"}]) == ""
+
+
+def test_serialize_graph_context_truncation():
+    from app.services.ai_service import AiService
+
+    # Build a large graph that exceeds 2000 chars
+    nodes = [{"id": f"n{i}", "name": f"node_{i}", "type": "Function", "file_path": f"file_{i}.py"} for i in range(200)]
+    edges = [{"source": f"n{i}", "target": f"n{i+1}", "type": "calls"} for i in range(199)]
+
+    result = AiService._serialize_graph_context(nodes, edges)
+    assert len(result) <= 2010  # Allow small margin for truncation marker
+    assert result.endswith("...")
+
+
+def test_serialize_graph_context_no_edges():
+    from app.services.ai_service import AiService
+
+    nodes = [{"id": "a", "name": "main", "type": "Function", "file_path": "main.py"}]
+    result = AiService._serialize_graph_context(nodes, [])
+    assert "Function: main (main.py)" in result
+    assert "-calls->" not in result
