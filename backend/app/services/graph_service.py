@@ -82,6 +82,19 @@ class GraphService:
             "is_dag": nx.is_directed_acyclic_graph(self.graph),
         }
 
+    def detect_cycles(self) -> list[list[str]]:
+        """Detect circular dependencies in the graph.
+
+        Uses nx.simple_cycles and filters to cycles of length <= 10.
+        Returns a list of cycles, each cycle being a list of node IDs.
+        """
+        try:
+            cycles = list(nx.simple_cycles(self.graph))
+        except Exception:
+            return []
+
+        return [c for c in cycles if len(c) <= 10]
+
     def get_subgraph_for_nodes(self, node_ids: list[str], depth: int = 2) -> dict:
         """Extract a subgraph around given seed nodes with configurable depth.
 
