@@ -20,10 +20,6 @@ interface GraphStore {
   showCycles: boolean
   cycleEdgeSet: Set<string>
 
-  // Internal cache fields
-  _filteredGraphCache: GraphData | null
-  _filteredGraphCacheKey: string | null
-
   setGraphData: (data: GraphData) => void
   updateGraphData: (incremental: GraphData) => void
   setSelectedNode: (node: GraphNode | null) => void
@@ -53,10 +49,6 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
   cycleEdgeSet: new Set(),
   focusNodeId: null,
 
-  // Internal cache fields (used outside render via getFilteredGraph)
-  _filteredGraphCache: null,
-  _filteredGraphCacheKey: null,
-
   setGraphData: (data) => set({ graphData: data }),
   updateGraphData: (incremental) =>
     set((state) => ({
@@ -74,22 +66,11 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
   setErrorMessage: (message) => set({ errorMessage: message }),
 
   getFilteredGraph: () => {
-    const { graphData, viewLevel, searchQuery, filterFilePath, _filteredGraphCache, _filteredGraphCacheKey } = get()
-
-    // Compute cache key from inputs
-    const nodeCount = graphData.nodes.length
-    const edgeCount = graphData.edges.length
-    const cacheKey = `${nodeCount}:${edgeCount}:${viewLevel}:${searchQuery}:${filterFilePath}`
-
-    // Return cached result if cache key matches
-    if (_filteredGraphCacheKey === cacheKey && _filteredGraphCache) {
-      return _filteredGraphCache
-    }
+    const { graphData, viewLevel, searchQuery, filterFilePath } = get()
 
     let nodes = graphData.nodes
     let edges = graphData.edges
 
-    // Level filter: map each level to which node types to show
     const LEVEL_TYPES: Record<string, string[] | null> = {
       all: null,
       module: ['Module'],
@@ -124,25 +105,19 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
           .filter((n) => n.name.toLowerCase().includes(q))
           .map((n) => n.id),
       )
-      // Filter edges to only include those where BOTH source AND target are in the matched node set
       const filteredEdges = edges.filter(
         (e) => matchedIds.has(e.source) && matchedIds.has(e.target),
       )
-      const result = {
+      return {
         nodes: nodes.map((n) => ({
           ...n,
           highlighted: matchedIds.has(n.id),
         })),
         edges: filteredEdges,
       }
-      // Update cache outside of render (only when called from non-render contexts)
-      set({ _filteredGraphCache: result, _filteredGraphCacheKey: cacheKey })
-      return result
     }
 
-    const result = { nodes, edges }
-    set({ _filteredGraphCache: result, _filteredGraphCacheKey: cacheKey })
-    return result
+    return { nodes, edges }
   },
 
   toggleShowCycles: () => {
