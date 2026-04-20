@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import Header from './components/layout/Header'
 import Sidebar from './components/layout/Sidebar'
 import MainContent from './components/layout/MainContent'
@@ -15,10 +15,9 @@ function App() {
   const clientId = useMemo(() => crypto.randomUUID(), [])
   const setClientId = useChatStore((s) => s.setClientId)
   useWebSocket(clientId)
-  useKeyboardShortcuts()
+  const { showHelp, closeHelp } = useKeyboardShortcuts()
   const setAiAvailable = useChatStore((s) => s.setAiAvailable)
   const isOpen = useChatStore((s) => s.isOpen)
-  const [showHelp, setShowHelp] = useState(false)
 
   useEffect(() => {
     setClientId(clientId)
@@ -27,22 +26,6 @@ function App() {
   useEffect(() => {
     getAiStatus().then(({ available }) => setAiAvailable(available))
   }, [setAiAvailable])
-
-  // ? key to open help modal
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
-      if (e.key === '?' && !e.ctrlKey && !e.shiftKey) {
-        // Shift+/ produces '?'
-      }
-      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
-        setShowHelp((prev) => !prev)
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
 
   return (
     <ErrorBoundary>
@@ -62,7 +45,7 @@ function App() {
             {isOpen && <AiChatPanel />}
           </div>
         </div>
-        <ShortcutsHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+        <ShortcutsHelpModal open={showHelp} onClose={closeHelp} />
       </div>
     </ErrorBoundary>
   )

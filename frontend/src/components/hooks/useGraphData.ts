@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useGraphStore } from '../../store/graphStore'
-import { getFullGraph, getNodeNeighbors } from '../../utils/api'
+import { getFullGraph } from '../../utils/api'
 
 export function useGraphData() {
   const setGraphData = useGraphStore((s) => s.setGraphData)

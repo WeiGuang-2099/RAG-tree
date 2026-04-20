@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from app.database import get_session
 from app.models.project import Project, File as FileModel, CodeNode, CodeEdge
 from app.services.graph_service import GraphService
-from datetime import datetime
 import networkx as nx
 import os
 
