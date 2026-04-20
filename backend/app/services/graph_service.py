@@ -82,6 +82,24 @@ class GraphService:
             "is_dag": nx.is_directed_acyclic_graph(self.graph),
         }
 
+    def get_subgraph_for_nodes(self, node_ids: list[str], depth: int = 2) -> dict:
+        """Extract a subgraph around given seed nodes with configurable depth.
+
+        Uses nx.ego_graph to expand from each seed node, then merges the
+        resulting ego graphs into a single combined subgraph.
+        """
+        valid_ids = [nid for nid in node_ids if nid in self.graph]
+        if not valid_ids:
+            return {"nodes": [], "edges": []}
+
+        combined_nodes = set()
+        for nid in valid_ids:
+            ego = nx.ego_graph(self.graph, nid, radius=depth, undirected=True)
+            combined_nodes.update(ego.nodes())
+
+        subgraph = self.graph.subgraph(combined_nodes)
+        return self._graph_to_dict(subgraph)
+
     def _graph_to_dict(self, g: nx.DiGraph) -> dict:
         nodes = []
         for node_id, data in g.nodes(data=True):
