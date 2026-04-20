@@ -134,3 +134,10 @@ export async function getDashboard(projectId: number): Promise<DashboardData> {
   if (!res.ok) throw new Error('Failed to get dashboard')
   return res.json()
 }
+
+export async function deleteFile(projectId: number, fileId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error('Failed to delete file')
+}

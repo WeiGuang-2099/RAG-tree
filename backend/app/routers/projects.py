@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select, delete
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from pydantic import BaseModel
 from app.database import get_session
 from app.models.project import Project, File as FileModel, CodeNode, CodeEdge
@@ -143,6 +143,39 @@ def delete_project(
     session.delete(project)
     session.commit()
     return {"detail": "Project deleted."}
+
+
+@router.delete("/{project_id}/files/{file_id}")
+def delete_file(
+    project_id: int,
+    file_id: int,
+    session: Session = Depends(get_session),
+):
+    """Delete a single file and its associated nodes/edges."""
+    file_record = session.get(FileModel, file_id)
+    if not file_record or file_record.project_id != project_id:
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    # Delete edges referencing nodes in this file
+    node_ids = session.exec(
+        select(CodeNode.id).where(CodeNode.file_id == file_id)
+    ).all()
+    if node_ids:
+        session.exec(
+            delete(CodeEdge).where(
+                CodeEdge.project_id == project_id,
+                or_(
+                    CodeEdge.source_node_id.in_(node_ids),
+                    CodeEdge.target_node_id.in_(node_ids),
+                ),
+            )
+        )
+
+    # Delete nodes and file
+    session.exec(delete(CodeNode).where(CodeNode.file_id == file_id))
+    session.delete(file_record)
+    session.commit()
+    return {"detail": "File deleted."}
 
 
 @router.get("/{project_id}/dashboard")

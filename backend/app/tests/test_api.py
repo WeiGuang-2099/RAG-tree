@@ -109,3 +109,8 @@ def test_get_path_not_found(client):
 def test_get_stats_not_found(client):
     response = client.get("/api/graph/stats/9999")
     assert response.status_code == 404
+
+
+def test_delete_file_not_found(client):
+    response = client.delete("/api/projects/9999/files/9999")
+    assert response.status_code == 404
