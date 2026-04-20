@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from app.database import get_session
 from app.models.project import CodeNode, CodeEdge, Project
 from app.services.ai_service import AiService
+from app.services.graph_service import GraphService
 from app.config import get_settings
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -32,7 +33,13 @@ async def chat(
     request: ChatRequest,
     session: Session = Depends(get_session),
 ):
-    """Send a chat message to the AI assistant about the codebase."""
+    """Send a chat message to the AI assistant about the codebase.
+
+    Three-stage Graph-RAG pipeline:
+    1. embed_search - find semantically similar nodes
+    2. graph_expand - expand subgraph around seed nodes
+    3. prompt_inject - serialize graph context into system prompt
+    """
     if not settings.zhipuai_api_key:
         raise HTTPException(
             status_code=500,
@@ -59,28 +66,58 @@ async def chat(
     graph_summary = f"Project has {len(nodes)} nodes and {len(edges)} edges."
 
     ai_service = AiService()
+
+    # Build in-memory graph for subgraph extraction
+    gs = GraphService()
+    node_id_map: dict[int, str] = {}
+    for n in nodes:
+        str_id = str(n.id)
+        node_id_map[n.id] = str_id
+        gs.add_node(
+            str_id, n.name, n.node_type,
+            getattr(n, "file_path", ""), n.start_line, n.end_line,
+            n.source_code or "",
+        )
+    for e in edges:
+        src_str = node_id_map.get(e.source_node_id)
+        tgt_str = node_id_map.get(e.target_node_id)
+        if src_str and tgt_str:
+            gs.add_edge(src_str, tgt_str, e.edge_type)
+
+    # Stage 1: embed_search - find semantically similar nodes
+    referenced_node_ids: list[int] = []
+    seed_str_ids: list[str] = []
+
     try:
         similar = ai_service.find_similar_nodes(
             query=request.message,
             nodes=[
                 {
+                    "id": n.id,
                     "name": n.name,
                     "type": n.node_type,
-                    "file_path": n.file_path,
+                    "file_path": getattr(n, "file_path", ""),
                     "source_code": n.source_code or "",
                 }
                 for n in nodes[:200]
             ],
-            top_k=5,
+            top_k=3,
         )
+
         if similar:
+            for s in similar[:3]:
+                if s.get("id") is not None:
+                    referenced_node_ids.append(s["id"])
+                    seed_str_ids.append(str(s["id"]))
+
+            # Build embedding-based code context
             top_contexts = []
             for s in similar[:3]:
                 code = s.get("source_code", "")
                 if len(code) > 800:
                     code = code[:800]
                 top_contexts.append(
-                    f"- {s['name']} ({s['type']}) in {s['file_path']}: {code}"
+                    f"- {s['name']} ({s['type']}) in {s.get('file_path', '')}: {code}"
                 )
             embedding_context = "\n\nSemantically relevant code (via Embedding-3):\n" + "\n".join(top_contexts)
             if context:
@@ -90,14 +127,26 @@ async def chat(
     except Exception:
         pass
 
+    # Stage 2: graph_expand - extract subgraph around seed nodes
+    graph_context = graph_summary
+    if seed_str_ids:
+        subgraph = gs.get_subgraph_for_nodes(seed_str_ids, depth=2)
+
+        # Stage 3: prompt_inject - serialize graph context
+        serialized = AiService._serialize_graph_context(
+            subgraph["nodes"], subgraph["edges"]
+        )
+        if serialized:
+            graph_context = f"{graph_summary}\n\nGraph topology context:\n{serialized}"
+
     response = await ai_service.chat(
         message=request.message,
-        graph_context=graph_summary,
+        graph_context=graph_context,
         node_context=context,
         history=request.history,
     )
 
-    return {"response": response}
+    return {"response": response, "referenced_node_ids": referenced_node_ids}
 
 
 @router.post("/architecture")
