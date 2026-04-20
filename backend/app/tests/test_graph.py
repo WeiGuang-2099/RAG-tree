@@ -96,3 +96,138 @@ def test_get_full_graph_empty():
 def test_get_node_not_found():
     gs = GraphService()
     assert gs.get_node("nonexistent") is None
+
+
+# US-201: get_subgraph_for_nodes tests
+
+
+def test_get_subgraph_for_nodes_basic():
+    gs = GraphService()
+    gs.add_node("a", "A", "Function", "a.py", 1, 10, "")
+    gs.add_node("b", "B", "Function", "b.py", 1, 10, "")
+    gs.add_node("c", "C", "Function", "c.py", 1, 10, "")
+    gs.add_node("d", "D", "Function", "d.py", 1, 10, "")
+    gs.add_edge("a", "b", "calls")
+    gs.add_edge("b", "c", "calls")
+    gs.add_edge("c", "d", "calls")
+
+    result = gs.get_subgraph_for_nodes(["a"], depth=1)
+    node_ids = [n["id"] for n in result["nodes"]]
+    assert "a" in node_ids
+    assert "b" in node_ids
+    assert "c" not in node_ids
+
+
+def test_get_subgraph_for_nodes_depth_2():
+    gs = GraphService()
+    gs.add_node("a", "A", "Function", "a.py", 1, 10, "")
+    gs.add_node("b", "B", "Function", "b.py", 1, 10, "")
+    gs.add_node("c", "C", "Function", "c.py", 1, 10, "")
+    gs.add_node("d", "D", "Function", "d.py", 1, 10, "")
+    gs.add_edge("a", "b", "calls")
+    gs.add_edge("b", "c", "calls")
+    gs.add_edge("c", "d", "calls")
+
+    result = gs.get_subgraph_for_nodes(["a"], depth=2)
+    node_ids = [n["id"] for n in result["nodes"]]
+    assert "a" in node_ids
+    assert "b" in node_ids
+    assert "c" in node_ids
+    assert "d" not in node_ids
+
+
+def test_get_subgraph_for_nodes_multiple_seeds():
+    gs = GraphService()
+    gs.add_node("a", "A", "Function", "a.py", 1, 10, "")
+    gs.add_node("b", "B", "Function", "b.py", 1, 10, "")
+    gs.add_node("c", "C", "Function", "c.py", 1, 10, "")
+    gs.add_node("d", "D", "Function", "d.py", 1, 10, "")
+    gs.add_edge("a", "b", "calls")
+    gs.add_edge("c", "d", "calls")
+
+    result = gs.get_subgraph_for_nodes(["a", "c"], depth=1)
+    node_ids = [n["id"] for n in result["nodes"]]
+    assert set(node_ids) == {"a", "b", "c", "d"}
+
+
+def test_get_subgraph_for_nodes_empty_ids():
+    gs = GraphService()
+    gs.add_node("a", "A", "Function", "a.py", 1, 10, "")
+    result = gs.get_subgraph_for_nodes([], depth=2)
+    assert result["nodes"] == []
+    assert result["edges"] == []
+
+
+def test_get_subgraph_for_nodes_invalid_ids():
+    gs = GraphService()
+    gs.add_node("a", "A", "Function", "a.py", 1, 10, "")
+    result = gs.get_subgraph_for_nodes(["nonexistent"], depth=2)
+    assert result["nodes"] == []
+    assert result["edges"] == []
+
+
+def test_get_subgraph_for_nodes_edges_included():
+    gs = GraphService()
+    gs.add_node("a", "A", "Function", "a.py", 1, 10, "")
+    gs.add_node("b", "B", "Function", "b.py", 1, 10, "")
+    gs.add_node("c", "C", "Function", "c.py", 1, 10, "")
+    gs.add_edge("a", "b", "calls")
+    gs.add_edge("b", "c", "calls")
+
+    result = gs.get_subgraph_for_nodes(["a"], depth=2)
+    edge_pairs = {(e["source"], e["target"]) for e in result["edges"]}
+    assert ("a", "b") in edge_pairs
+    assert ("b", "c") in edge_pairs
+
+
+# US-205: detect_cycles tests
+
+
+def test_detect_cycles_with_cycle():
+    gs = GraphService()
+    gs.add_node("a", "A", "Module", "a.py", 1, 1, "")
+    gs.add_node("b", "B", "Module", "b.py", 1, 1, "")
+    gs.add_edge("a", "b", "imports")
+    gs.add_edge("b", "a", "imports")
+
+    cycles = gs.detect_cycles()
+    assert len(cycles) >= 1
+    # Each cycle should contain both nodes
+    flat = set()
+    for c in cycles:
+        flat.update(c)
+    assert "a" in flat
+    assert "b" in flat
+
+
+def test_detect_cycles_no_cycle():
+    gs = GraphService()
+    gs.add_node("a", "A", "Module", "a.py", 1, 1, "")
+    gs.add_node("b", "B", "Module", "b.py", 1, 1, "")
+    gs.add_edge("a", "b", "imports")
+
+    cycles = gs.detect_cycles()
+    assert cycles == []
+
+
+def test_detect_cycles_empty_graph():
+    gs = GraphService()
+    cycles = gs.detect_cycles()
+    assert cycles == []
+
+
+def test_detect_cycles_three_node_cycle():
+    gs = GraphService()
+    gs.add_node("a", "A", "Module", "a.py", 1, 1, "")
+    gs.add_node("b", "B", "Module", "b.py", 1, 1, "")
+    gs.add_node("c", "C", "Module", "c.py", 1, 1, "")
+    gs.add_edge("a", "b", "imports")
+    gs.add_edge("b", "c", "imports")
+    gs.add_edge("c", "a", "imports")
+
+    cycles = gs.detect_cycles()
+    assert len(cycles) >= 1
+    flat = set()
+    for c in cycles:
+        flat.update(c)
+    assert flat == {"a", "b", "c"}

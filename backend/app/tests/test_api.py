@@ -83,3 +83,16 @@ def test_ai_chat_project_not_found(client):
 def test_ai_architecture_project_not_found(client):
     response = client.post("/api/ai/architecture", json={"project_id": 9999})
     assert response.status_code in (404, 500)
+
+
+# US-205/US-207: cycles and dashboard endpoint tests
+
+
+def test_get_cycles_not_found(client):
+    response = client.get("/api/graph/cycles/9999")
+    assert response.status_code == 404
+
+
+def test_get_dashboard_not_found(client):
+    response = client.get("/api/projects/9999/dashboard")
+    assert response.status_code == 404

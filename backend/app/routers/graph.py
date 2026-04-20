@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models.project import CodeNode, CodeEdge, Project, File as FileModel
+from app.services.graph_service import GraphService
 from typing import Optional
 
 router = APIRouter(prefix="/api/graph", tags=["graph"])
@@ -72,8 +73,8 @@ def get_full_graph(
     session: Session = Depends(get_session),
 ):
     """Get full graph data (nodes + edges) for a project."""
-    nodes = get_nodes(project_id, session)
-    edges = get_edges(project_id, session)
+    nodes = get_nodes(project_id, session, node_type=None)
+    edges = get_edges(project_id, session, edge_type=None)
     return {"nodes": nodes, "edges": edges}
 
 
@@ -143,3 +144,46 @@ def get_neighbors(
             for e in neighbor_edges
         ],
     }
+
+
+def _build_graph_service(project_id: int, session: Session) -> GraphService:
+    """Build an in-memory GraphService from DB data for a project."""
+    nodes = session.exec(
+        select(CodeNode).where(CodeNode.project_id == project_id)
+    ).all()
+    edges = session.exec(
+        select(CodeEdge).where(CodeEdge.project_id == project_id)
+    ).all()
+
+    gs = GraphService()
+    node_id_map: dict[int, str] = {}
+    for n in nodes:
+        str_id = str(n.id)
+        node_id_map[n.id] = str_id
+        file_record = session.get(FileModel, n.file_id)
+        file_path = file_record.file_path if file_record else ""
+        gs.add_node(
+            str_id, n.name, n.node_type,
+            file_path, n.start_line, n.end_line, n.source_code or "",
+        )
+    for e in edges:
+        src_str = node_id_map.get(e.source_node_id)
+        tgt_str = node_id_map.get(e.target_node_id)
+        if src_str and tgt_str:
+            gs.add_edge(src_str, tgt_str, e.edge_type)
+    return gs
+
+
+@router.get("/cycles/{project_id}")
+def get_cycles(
+    project_id: int,
+    session: Session = Depends(get_session),
+):
+    """Detect circular dependencies in the project graph."""
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+
+    gs = _build_graph_service(project_id, session)
+    cycles = gs.detect_cycles()
+    return {"cycles": cycles, "count": len(cycles)}
