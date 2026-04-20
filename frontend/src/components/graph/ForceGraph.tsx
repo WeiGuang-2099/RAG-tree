@@ -74,6 +74,17 @@ export default function ForceGraph() {
     }
   }, [focusNodeId])
 
+  // Listen for graph:fit custom event (from keyboard shortcut F key)
+  useEffect(() => {
+    const handler = () => {
+      if (fgRef.current) {
+        fgRef.current.zoomToFit(400, 40, 600)
+      }
+    }
+    window.addEventListener('graph:fit', handler)
+    return () => window.removeEventListener('graph:fit', handler)
+  }, [])
+
   useEffect(() => {
     if (fgRef.current) {
       fgRef.current.d3Force('charge')?.strength(-200)

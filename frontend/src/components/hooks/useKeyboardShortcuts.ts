@@ -1,13 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { useGraphStore } from '../../store/graphStore'
 import { useChatStore } from '../../store/chatStore'
 
 export function useKeyboardShortcuts() {
-  const setSearchQuery = useGraphStore((s) => s.setSearchQuery)
   const setViewLevel = useGraphStore((s) => s.setViewLevel)
   const setSelectedNode = useGraphStore((s) => s.setSelectedNode)
   const toggleOpen = useChatStore((s) => s.toggleOpen)
   const isOpen = useChatStore((s) => s.isOpen)
+  const [showHelp, setShowHelp] = useState(false)
+
+  const toggleHelp = useCallback(() => setShowHelp((prev) => !prev), [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -62,19 +64,28 @@ export function useKeyboardShortcuts() {
       if (e.key === 'Escape') {
         setSelectedNode(null)
         if (isOpen) toggleOpen()
+        if (showHelp) toggleHelp()
         return
       }
 
-      // F: Fit graph to viewport (re-center)
+      // F: Fit graph to viewport
       if (e.key === 'f' && !e.ctrlKey && !e.shiftKey) {
         e.preventDefault()
-        // Dispatch a custom event that ForceGraph can listen to
         window.dispatchEvent(new CustomEvent('graph:fit'))
+        return
+      }
+
+      // ?: Toggle shortcuts help modal
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault()
+        toggleHelp()
         return
       }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [setSearchQuery, setViewLevel, setSelectedNode, toggleOpen, isOpen])
+  }, [setViewLevel, setSelectedNode, toggleOpen, isOpen, showHelp, toggleHelp])
+
+  return { showHelp, closeHelp: useCallback(() => setShowHelp(false), []) }
 }

@@ -20,7 +20,6 @@ export function useWebSocket(clientId: string) {
   const setIsLoading = useGraphStore((s) => s.setIsLoading)
   const setErrorMessage = useGraphStore((s) => s.setErrorMessage)
   const updateLastMessage = useChatStore((s) => s.updateLastMessage)
-  const setIsStreaming = useChatStore((s) => s.setIsStreaming)
   const connectedRef = useRef(false)
   const [isConnected, setIsConnected] = useState(false)
 
@@ -121,7 +120,7 @@ export function useWebSocket(clientId: string) {
       connectingRef.current = false
       ws.close()
     }
-  }, [clientId, updateGraphData, setProgress, setIsLoading, setErrorMessage, updateLastMessage, setIsStreaming])
+  }, [clientId, updateGraphData, setProgress, setIsLoading, setErrorMessage, updateLastMessage])
 
   useEffect(() => {
     mountedRef.current = true

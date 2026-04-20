@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 from pydantic import BaseModel
+import json
 from app.database import get_session, get_ai_service, get_graph_service
 from app.models.project import CodeNode, CodeEdge, Project
 from app.services.ai_service import AiService
@@ -251,7 +252,6 @@ async def chat_stream(
     # Stream response via SSE
     async def event_generator():
         # First event: send referenced_node_ids
-        import json
         yield f"data: {json.dumps({'type': 'meta', 'referenced_node_ids': referenced_node_ids})}\n\n"
 
         async for chunk in ai_service.chat_stream(
