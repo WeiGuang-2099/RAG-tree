@@ -86,64 +86,41 @@ def get_neighbors(
     depth: int = Query(default=1, ge=1, le=3),
 ):
     """Get neighboring nodes within a given depth."""
-    visited = {node_id}
-    current_level = {node_id}
+    gs = _build_graph_service(project_id, session)
+    return gs.get_neighbors(str(node_id), depth=depth)
 
-    for _ in range(depth):
-        next_level = set()
-        for nid in current_level:
-            # Outgoing edges
-            out_edges = session.exec(
-                select(CodeEdge).where(
-                    CodeEdge.project_id == project_id,
-                    CodeEdge.source_node_id == nid,
-                )
-            ).all()
-            for e in out_edges:
-                if e.target_node_id not in visited:
-                    next_level.add(e.target_node_id)
-                    visited.add(e.target_node_id)
 
-            # Incoming edges
-            in_edges = session.exec(
-                select(CodeEdge).where(
-                    CodeEdge.project_id == project_id,
-                    CodeEdge.target_node_id == nid,
-                )
-            ).all()
-            for e in in_edges:
-                if e.source_node_id not in visited:
-                    next_level.add(e.source_node_id)
-                    visited.add(e.source_node_id)
+@router.get("/path/{project_id}")
+def get_path(
+    project_id: int,
+    from_id: int = Query(..., alias="from"),
+    to_id: int = Query(..., alias="to"),
+    session: Session = Depends(get_session),
+):
+    """Find shortest path between two nodes."""
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
 
-        current_level = next_level
+    gs = _build_graph_service(project_id, session)
+    path = gs.find_path(str(from_id), str(to_id))
+    if path is None:
+        return {"path": None, "found": False}
+    return {"path": path, "found": True}
 
-    neighbor_nodes = session.exec(
-        select(CodeNode).where(
-            CodeNode.project_id == project_id,
-            CodeNode.id.in_(visited),
-        )
-    ).all()
 
-    neighbor_edges = session.exec(
-        select(CodeEdge).where(
-            CodeEdge.project_id == project_id,
-            CodeEdge.source_node_id.in_(visited),
-            CodeEdge.target_node_id.in_(visited),
-        )
-    ).all()
+@router.get("/stats/{project_id}")
+def get_stats(
+    project_id: int,
+    session: Session = Depends(get_session),
+):
+    """Get graph statistics."""
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
 
-    return {
-        "nodes": [_node_to_dict(n, session) for n in neighbor_nodes],
-        "edges": [
-            {
-                "source": str(e.source_node_id),
-                "target": str(e.target_node_id),
-                "type": e.edge_type,
-            }
-            for e in neighbor_edges
-        ],
-    }
+    gs = _build_graph_service(project_id, session)
+    return gs.get_stats()
 
 
 def _build_graph_service(project_id: int, session: Session) -> GraphService:

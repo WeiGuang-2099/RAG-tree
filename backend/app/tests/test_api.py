@@ -96,3 +96,16 @@ def test_get_cycles_not_found(client):
 def test_get_dashboard_not_found(client):
     response = client.get("/api/projects/9999/dashboard")
     assert response.status_code == 404
+
+
+# US-009: path and stats endpoint tests
+
+
+def test_get_path_not_found(client):
+    response = client.get("/api/graph/path/9999?from=1&to=2")
+    assert response.status_code == 404
+
+
+def test_get_stats_not_found(client):
+    response = client.get("/api/graph/stats/9999")
+    assert response.status_code == 404

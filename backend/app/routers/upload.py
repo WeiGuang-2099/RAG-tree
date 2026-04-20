@@ -59,6 +59,16 @@ async def process_files(
                     err_msg = f"Parse error in {filename}: {str(e)}"
                     logger.warning(err_msg)
                     parse_errors.append(err_msg)
+                    # Update file status to error
+                    file_record = session.exec(
+                        FileModel.__table__.select().where(
+                            FileModel.file_path == filename,
+                            FileModel.project_id == project_id,
+                        )
+                    ).first()
+                    if file_record:
+                        file_record.status = "error"
+                        session.add(file_record)
                     continue
 
                 file_record = session.exec(
@@ -95,6 +105,10 @@ async def process_files(
                     })
 
                 all_edges.extend(result.get("edges", []))
+
+                # Update file status to completed
+                file_record.status = "completed"
+                session.add(file_record)
 
             # Composite key mapping: (file_path, name) -> node_id
             node_key_to_id: dict[tuple[str, str], str] = {

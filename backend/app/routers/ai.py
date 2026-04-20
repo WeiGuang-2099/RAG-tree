@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from pydantic import BaseModel
-from app.database import get_session
+from app.database import get_session, get_ai_service, get_graph_service
 from app.models.project import CodeNode, CodeEdge, Project
 from app.services.ai_service import AiService
 from app.services.graph_service import GraphService
@@ -32,6 +32,8 @@ class SemanticSearchRequest(BaseModel):
 async def chat(
     request: ChatRequest,
     session: Session = Depends(get_session),
+    ai_service: AiService = Depends(get_ai_service),
+    gs: GraphService = Depends(get_graph_service),
 ):
     """Send a chat message to the AI assistant about the codebase.
 
@@ -65,10 +67,7 @@ async def chat(
 
     graph_summary = f"Project has {len(nodes)} nodes and {len(edges)} edges."
 
-    ai_service = AiService()
-
     # Build in-memory graph for subgraph extraction
-    gs = GraphService()
     node_id_map: dict[int, str] = {}
     for n in nodes:
         str_id = str(n.id)
@@ -153,6 +152,7 @@ async def chat(
 async def generate_architecture(
     request: ArchitectureRequest,
     session: Session = Depends(get_session),
+    ai_service: AiService = Depends(get_ai_service),
 ):
     """Generate architecture overview using AI."""
     if not settings.zhipuai_api_key:
@@ -179,7 +179,6 @@ async def generate_architecture(
         f"- {e.source_node_id} -> {e.target_node_id} ({e.edge_type})" for e in edges
     )
 
-    ai_service = AiService()
     response = await ai_service.analyze_architecture(
         nodes_summary=node_info, edges_summary=edge_info
     )
@@ -191,6 +190,7 @@ async def generate_architecture(
 async def semantic_search(
     request: SemanticSearchRequest,
     session: Session = Depends(get_session),
+    ai_service: AiService = Depends(get_ai_service),
 ):
     """Search code nodes using Embedding-3 semantic similarity."""
     if not settings.zhipuai_api_key:
@@ -210,7 +210,6 @@ async def semantic_search(
     if not nodes:
         return {"results": []}
 
-    ai_service = AiService()
     try:
         results = ai_service.find_similar_nodes(
             query=request.query,
