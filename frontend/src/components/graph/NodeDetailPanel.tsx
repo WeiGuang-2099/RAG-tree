@@ -42,7 +42,7 @@ export default function NodeDetailPanel() {
   const highlightEnd = selectedNode.end_line
 
   return (
-    <GlassCard className="absolute bottom-4 right-4 w-96 max-h-96 overflow-auto z-10">
+    <GlassCard className="p-4 absolute bottom-4 right-4 w-96 max-h-96 overflow-auto z-10">
       <div className="flex justify-between items-start mb-2">
         <div>
           <h3 className="font-bold text-gray-800">{selectedNode.name}</h3>
